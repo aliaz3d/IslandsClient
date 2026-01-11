@@ -1,4 +1,5 @@
--- IslandsClient - Rayfield FULL Version
+-- IslandsClient - Rayfield FULL (HYBRID SAFE VERSION)
+-- Works in Studio hierarchy AND executor execution
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
@@ -6,21 +7,42 @@ local player = Players.LocalPlayer
 -- Rayfield (executor required)
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
-local ToggleManager = require(script.Modules.ToggleManager)
-local Scheduler = require(script.Modules.Scheduler)
-local Presets = require(script.Modules.Presets)
+-- Hybrid module loader
+local Modules
 
-local AutoEat = require(script.Modules.AutoEat).new()
-local Mining = require(script.Modules.MiningController).new()
-local Farming = require(script.Modules.FarmingController).new()
-local Movement = require(script.Modules.MovementController).new()
-local TeleportController = require(script.Modules.TeleportController)
+if script:FindFirstChild("Modules") then
+	-- Studio / proper hierarchy
+	Modules = script.Modules
+else
+	-- Executor fallback (RAW URLs required)
+	local base = "https://raw.githubusercontent.com/REPLACE_WITH_YOUR_REPO/IslandsClient/main/Modules/"
+	Modules = {
+		ToggleManager = loadstring(game:HttpGet(base .. "ToggleManager.lua"))(),
+		Scheduler = loadstring(game:HttpGet(base .. "Scheduler.lua"))(),
+		Presets = loadstring(game:HttpGet(base .. "Presets.lua"))(),
+		AutoEat = loadstring(game:HttpGet(base .. "AutoEat.lua"))(),
+		MiningController = loadstring(game:HttpGet(base .. "MiningController.lua"))(),
+		FarmingController = loadstring(game:HttpGet(base .. "FarmingController.lua"))(),
+		MovementController = loadstring(game:HttpGet(base .. "MovementController.lua"))(),
+		TeleportController = loadstring(game:HttpGet(base .. "TeleportController.lua"))(),
+	}
+end
+
+local ToggleManager = require(Modules.ToggleManager)
+local Scheduler = require(Modules.Scheduler)
+local Presets = require(Modules.Presets)
+
+local AutoEat = require(Modules.AutoEat).new()
+local Mining = require(Modules.MiningController).new()
+local Farming = require(Modules.FarmingController).new()
+local Movement = require(Modules.MovementController).new()
+local TeleportController = require(Modules.TeleportController)
 
 -- Window
 local Window = Rayfield:CreateWindow({
 	Name = "Islands Client",
 	LoadingTitle = "Islands",
-	LoadingSubtitle = "Rayfield Edition",
+	LoadingSubtitle = "Rayfield Hybrid",
 	ConfigurationSaving = {
 		Enabled = true,
 		FolderName = "IslandsClient",
@@ -135,6 +157,6 @@ end)
 
 Rayfield:Notify({
 	Title = "Islands Client",
-	Content = "Rayfield UI loaded",
+	Content = "Rayfield Hybrid loaded successfully",
 	Duration = 3,
 })
