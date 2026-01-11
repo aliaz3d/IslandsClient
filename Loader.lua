@@ -1,122 +1,117 @@
 
--- Islands Client EXECUTOR-ONLY (Rayfield Farming Edition)
+-- Pascal Islands - FULL Rayfield Executor Version
+repeat task.wait() until game:IsLoaded()
 
-if getgenv().IslandsClientLoaded then return end
-getgenv().IslandsClientLoaded = true
-
-local base = "https://raw.githubusercontent.com/aliaz3d/IslandsClient/main/Modules/"
+if getgenv().PascalIslandsLoaded then return end
+getgenv().PascalIslandsLoaded = true
 
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
-local ToggleManager      = loadstring(game:HttpGet(base .. "ToggleManager.lua"))()
-local Scheduler          = loadstring(game:HttpGet(base .. "Scheduler.lua"))()
-local Presets            = loadstring(game:HttpGet(base .. "Presets.lua"))()
-local AutoEat            = loadstring(game:HttpGet(base .. "AutoEat.lua"))().new()
-local Mining             = loadstring(game:HttpGet(base .. "MiningController.lua"))().new()
-local Farming            = loadstring(game:HttpGet(base .. "FarmingController.lua"))().new()
-local Movement           = loadstring(game:HttpGet(base .. "MovementController.lua"))().new()
-local TeleportController = loadstring(game:HttpGet(base .. "TeleportController.lua"))()
-
-local FlowerPicker = loadstring(game:HttpGet(base .. "FlowerPicker.lua"))()
-local CropPicker   = loadstring(game:HttpGet(base .. "CropPicker.lua"))()
-local FruitPicker  = loadstring(game:HttpGet(base .. "FruitPicker.lua"))()
-
-for _, n in ipairs({ "AutoEat", "Mining", "Farming", "Movement" }) do
-    ToggleManager:Register(n, false)
-end
-
-local function sync(name, v)
-    ToggleManager:Set(name, v)
-    if v then Scheduler:Apply(ToggleManager, name) end
-end
-
 local Window = Rayfield:CreateWindow({
-    Name = "Islands Client",
+    Name = "Pascal Islands",
     LoadingTitle = "Islands",
-    LoadingSubtitle = "Executor Farming",
+    LoadingSubtitle = "Rayfield Executor",
     ConfigurationSaving = {
         Enabled = true,
-        FolderName = "IslandsClient",
-        FileName = "FarmingConfig"
+        FolderName = "PascalIslands",
+        FileName = "Config"
     }
 })
 
-local PlayerTab  = Window:CreateTab("Player", 4483362458)
 local FarmingTab = Window:CreateTab("Farming", 4483362458)
-local MiningTab  = Window:CreateTab("Mining", 4483362458)
+local UtilityTab = Window:CreateTab("Utility", 4483362458)
 
-PlayerTab:CreateToggle({
-    Name = "Auto Eat",
-    CurrentValue = false,
-    Callback = function(v) sync("AutoEat", v) end
-})
+local RS = game:GetService("ReplicatedStorage")
+local Net = RS.rbxts_include.node_modules["@rbxts"].net.out._NetManaged
 
-ToggleManager:OnChanged("AutoEat", function(v)
-    if v then AutoEat:Start() else AutoEat:Stop() end
+local function getIsland()
+    for _, i in pairs(workspace.Islands:GetChildren()) do
+        if i:IsA("Model") then return i end
+    end
+end
+
+local function pickFlowers()
+    local island = getIsland()
+    if not island or not island:FindFirstChild("Blocks") then return 0 end
+    local c=0
+    for _,b in pairs(island.Blocks:GetChildren()) do
+        if b.Name and b.Name:lower():find("flower") then
+            pcall(function()
+                Net.client_request_1:InvokeServer({flower=b})
+                c+=1
+            end)
+            if c%25==0 then task.wait() end
+        end
+    end
+    return c
+end
+
+local function pickBerries()
+    local island = getIsland()
+    if not island or not island:FindFirstChild("Blocks") then return 0 end
+    local c=0
+    for _,b in pairs(island.Blocks:GetChildren()) do
+        if b.Name and b.Name:lower():find("berry") and b:FindFirstChild("stage") and b.stage.Value==3 then
+            pcall(function()
+                Net.CLIENT_HARVEST_CROP_REQUEST:InvokeServer({
+                    player=game.Players.LocalPlayer,
+                    model=b,
+                    player_tracking_category="join_from_web"
+                })
+                c+=1
+            end)
+            if c%20==0 then task.wait() end
+        end
+    end
+    return c
+end
+
+local DropAura=false
+task.spawn(function()
+    while task.wait(1.2) do
+        if not DropAura then continue end
+        local island = getIsland()
+        if not island or not island:FindFirstChild("Drops") then continue end
+        local hrp = game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if not hrp then continue end
+        for _,t in pairs(island.Drops:GetChildren()) do
+            if t:IsA("Tool") and t:FindFirstChild("HandleDisabled") then
+                if (t.HandleDisabled.Position-hrp.Position).Magnitude<=25 then
+                    pcall(function()
+                        Net.CLIENT_TOOL_PICKUP_REQUEST:InvokeServer({
+                            tool=t,
+                            player_tracking_category="join_from_web"
+                        })
+                    end)
+                    task.wait(0.1)
+                end
+            end
+        end
+    end
 end)
 
-PlayerTab:CreateToggle({
-    Name = "Fast Movement",
-    CurrentValue = false,
-    Callback = function(v) sync("Movement", v) end
-})
-
-ToggleManager:OnChanged("Movement", function(v)
-    if v then Movement:Start() else Movement:Stop() end
-end)
-
 FarmingTab:CreateButton({
-    Name = "Pick All Flowers",
-    Callback = function()
-        local c = FlowerPicker:PickAll() or 0
-        Rayfield:Notify({ Title="Flowers", Content="Picked "..c, Duration=3 })
+    Name="Pick All Flowers",
+    Callback=function()
+        Rayfield:Notify({Title="Flowers",Content="Picked "..pickFlowers(),Duration=3})
     end
 })
 
 FarmingTab:CreateButton({
-    Name = "Pick All Crops (Nearby)",
-    Callback = function()
-        local c = CropPicker:PickAll(80) or 0
-        Rayfield:Notify({ Title="Crops", Content="Picked "..c, Duration=3 })
+    Name="Pick All Berries",
+    Callback=function()
+        Rayfield:Notify({Title="Berries",Content="Picked "..pickBerries(),Duration=3})
     end
 })
 
-FarmingTab:CreateButton({
-    Name = "Pick All Fruits",
-    Callback = function()
-        local c = FruitPicker:PickAll() or 0
-        Rayfield:Notify({ Title="Fruits", Content="Picked "..c, Duration=3 })
-    end
+UtilityTab:CreateToggle({
+    Name="Pickup Drops Aura",
+    CurrentValue=false,
+    Callback=function(v) DropAura=v end
 })
-
-FarmingTab:CreateButton({
-    Name = "Farm Assist (All)",
-    Callback = function()
-        local f1 = FlowerPicker:PickAll() or 0
-        task.wait(0.3)
-        local f2 = CropPicker:PickAll(80) or 0
-        task.wait(0.3)
-        local f3 = FruitPicker:PickAll() or 0
-        Rayfield:Notify({
-            Title="Farm Assist",
-            Content=("🌸 %d  🌾 %d  🍎 %d"):format(f1,f2,f3),
-            Duration=4
-        })
-    end
-})
-
-MiningTab:CreateToggle({
-    Name = "Auto Mining",
-    CurrentValue = false,
-    Callback = function(v) sync("Mining", v) end
-})
-
-ToggleManager:OnChanged("Mining", function(v)
-    if v then Mining:Start() else Mining:Stop() end
-end)
 
 Rayfield:Notify({
-    Title="Islands Client",
-    Content="Executor Farming Loaded",
+    Title="Pascal Islands",
+    Content="Fully loaded (Rayfield Executor)",
     Duration=3
 })
