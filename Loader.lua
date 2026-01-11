@@ -1,5 +1,5 @@
 
--- Pascal Islands - Rayfield Executor (FULL Farming+Watering)
+-- Pascal Islands - Rayfield Executor (FARMING PRO)
 repeat task.wait() until game:IsLoaded()
 
 if getgenv().PascalIslandsLoaded then return end
@@ -8,12 +8,13 @@ getgenv().PascalIslandsLoaded = true
 local Players = game:GetService("Players")
 local Player = Players.LocalPlayer
 
+-- Rayfield
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Window = Rayfield:CreateWindow({
     Name = "Pascal Islands",
     LoadingTitle = "Islands",
-    LoadingSubtitle = "Rayfield Farming+",
+    LoadingSubtitle = "Rayfield Farming PRO",
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "PascalIslands",
@@ -24,9 +25,13 @@ local Window = Rayfield:CreateWindow({
 local FarmingTab = Window:CreateTab("Farming", 4483362458)
 local UtilityTab = Window:CreateTab("Utility", 4483362458)
 
+-- Net
 local RS = game:GetService("ReplicatedStorage")
 local Net = RS.rbxts_include.node_modules["@rbxts"].net.out._NetManaged
 
+------------------------------------------------
+-- HELPERS
+------------------------------------------------
 local function getChar()
     return Player.Character or Player.CharacterAdded:Wait()
 end
@@ -44,6 +49,9 @@ local function getIsland()
     return workspace.Islands:GetChildren()[1]
 end
 
+------------------------------------------------
+-- RUN FAST
+------------------------------------------------
 local runFastConn
 local function runFast()
     local hum = getHumanoid()
@@ -59,6 +67,9 @@ local function stopRunFast()
     getHumanoid().WalkSpeed = 16
 end
 
+------------------------------------------------
+-- FLOWER HELPERS
+------------------------------------------------
 local function getClosestFertiles()
     local isl = getIsland()
     local root = getRoot()
@@ -76,6 +87,18 @@ local function getClosestFertiles()
     return list
 end
 
+local function getFertileFlowers()
+    local isl = getIsland()
+    if not isl or not isl:FindFirstChild("Blocks") then return {} end
+    local list={}
+    for _,v in pairs(isl.Blocks:GetChildren()) do
+        if v:IsA("Part") and v:FindFirstChild("Watered") and v:FindFirstChild("Top") and v.Watered.Value then
+            table.insert(list,v)
+        end
+    end
+    return list
+end
+
 local function getUnfertiles()
     local isl = getIsland()
     if not isl or not isl:FindFirstChild("Blocks") then return {} end
@@ -88,6 +111,9 @@ local function getUnfertiles()
     return list
 end
 
+------------------------------------------------
+-- EQUIP
+------------------------------------------------
 local function equipWateringCan()
     local bp = Player.Backpack
     local char = getChar()
@@ -97,9 +123,16 @@ local function equipWateringCan()
     end
 end
 
+------------------------------------------------
+-- STATES
+------------------------------------------------
 local AutoWater=false
 local AutoPickUnfertile=false
+local AutoCollectFertile=false
 
+------------------------------------------------
+-- LOOPS
+------------------------------------------------
 task.spawn(function()
     while task.wait(0.4) do
         if not AutoWater then continue end
@@ -134,6 +167,28 @@ task.spawn(function()
     end
 end)
 
+task.spawn(function()
+    while task.wait(1.5) do
+        if not AutoCollectFertile then continue end
+        local hum = getHumanoid()
+        local root = getRoot()
+        for _,f in pairs(getFertileFlowers()) do
+            if not AutoCollectFertile then break end
+            if (root.Position-f.Position).Magnitude>24 then
+                hum:MoveTo(f.Position)
+                hum.MoveToFinished:Wait()
+            end
+            pcall(function()
+                Net.client_request_1:InvokeServer({flower=f})
+            end)
+            task.wait(0.25)
+        end
+    end
+end)
+
+------------------------------------------------
+-- UI
+------------------------------------------------
 FarmingTab:CreateToggle({
     Name="Auto Water Closest Fertiles",
     CurrentValue=false,
@@ -143,16 +198,24 @@ FarmingTab:CreateToggle({
     end
 })
 
+FarmingTab:CreateToggle({
+    Name="Auto Collect Fertile Flowers",
+    CurrentValue=false,
+    Callback=function(v)
+        AutoCollectFertile=v
+    end
+})
+
 FarmingTab:CreateButton({
-    Name="Water Nearby Fertiles",
+    Name="Collect Fertile Flowers (Once)",
     Callback=function()
-        for _,f in ipairs(getClosestFertiles()) do
-            if (getRoot().Position-f.Position).Magnitude<=24 then
-                equipWateringCan()
-                Net.CLIENT_WATER_BLOCK:InvokeServer({block=f})
-            end
+        local count=0
+        for _,f in pairs(getFertileFlowers()) do
+            Net.client_request_1:InvokeServer({flower=f})
+            count+=1
+            if count%20==0 then task.wait() end
         end
-        Rayfield:Notify({Title="Watering",Content="Nearby watered",Duration=3})
+        Rayfield:Notify({Title="Flowers",Content="Collected "..count,Duration=3})
     end
 })
 
@@ -169,6 +232,7 @@ UtilityTab:CreateButton({
     Callback=function()
         AutoWater=false
         AutoPickUnfertile=false
+        AutoCollectFertile=false
         stopRunFast()
         Rayfield:Notify({Title="Stopped",Content="All farming stopped",Duration=3})
     end
@@ -176,6 +240,6 @@ UtilityTab:CreateButton({
 
 Rayfield:Notify({
     Title="Pascal Islands",
-    Content="Farming+Watering Loaded",
+    Content="Farming PRO Loaded",
     Duration=3
 })
