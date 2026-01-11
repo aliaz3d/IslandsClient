@@ -1,19 +1,12 @@
--- IslandsClient Main LocalScript (Final Fixed Version)
+-- IslandsClient - Rayfield FULL Version
 
 local Players = game:GetService("Players")
-local Stats = game:GetService("Stats")
 local player = Players.LocalPlayer
 
--- Prevent memory tracking warnings (safe guard)
-pcall(function()
-	if Stats.MemoryTrackingEnabled then
-		Stats:GetTotalMemoryUsageMb()
-	end
-end)
+-- Rayfield (executor required)
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local ToggleManager = require(script.Modules.ToggleManager)
-local UIBuilder = require(script.Modules.UIBuilder)
-local CategoryManager = require(script.Modules.CategoryManager)
 local Scheduler = require(script.Modules.Scheduler)
 local Presets = require(script.Modules.Presets)
 
@@ -23,142 +16,112 @@ local Farming = require(script.Modules.FarmingController).new()
 local Movement = require(script.Modules.MovementController).new()
 local TeleportController = require(script.Modules.TeleportController)
 
+-- Window
+local Window = Rayfield:CreateWindow({
+	Name = "Islands Client",
+	LoadingTitle = "Islands",
+	LoadingSubtitle = "Rayfield Edition",
+	ConfigurationSaving = {
+		Enabled = true,
+		FolderName = "IslandsClient",
+		FileName = "RayfieldConfig"
+	}
+})
+
 -- Register toggles
-ToggleManager:Register("AutoEat", false)
-ToggleManager:Register("Mining", false)
-ToggleManager:Register("Farming", false)
-ToggleManager:Register("Movement", false)
-ToggleManager:Register("Teleports", false)
-ToggleManager:Register("Debug", false)
-
--- GUI
-local gui = Instance.new("ScreenGui")
-gui.Name = "IslandsCleanGUI"
-gui.ResetOnSpawn = false
-gui.Parent = player:WaitForChild("PlayerGui")
-
--- Panels
-local sidebar = UIBuilder:CreatePanel(gui, UDim2.fromOffset(160, 360))
-sidebar.Position = UDim2.fromOffset(20, 100)
-
-local contentRoot = UIBuilder:CreatePanel(gui, UDim2.fromOffset(240, 360))
-contentRoot.Position = UDim2.fromOffset(200, 100)
-
-local playerPanel = UIBuilder:CreatePanel(contentRoot, contentRoot.Size)
-local farmingPanel = UIBuilder:CreatePanel(contentRoot, contentRoot.Size)
-local miningPanel = UIBuilder:CreatePanel(contentRoot, contentRoot.Size)
-local teleportPanel = UIBuilder:CreatePanel(contentRoot, contentRoot.Size)
-
-CategoryManager:Register("Player", playerPanel)
-CategoryManager:Register("Farming", farmingPanel)
-CategoryManager:Register("Mining", miningPanel)
-CategoryManager:Register("Teleports", teleportPanel)
-
-local function guardedToggle(name)
-	ToggleManager:Toggle(name)
-	if ToggleManager:Get(name) then
-		Scheduler:Apply(ToggleManager, name)
-	end
+for _, name in ipairs({ "AutoEat", "Mining", "Farming", "Movement" }) do
+	ToggleManager:Register(name, false)
 end
 
-local function sidebarButton(text, category)
-	local btn = UIBuilder:CreateButton(sidebar, text, UDim2.fromOffset(150, 26))
-	UIBuilder:AnimateHover(btn)
-	btn.MouseButton1Click:Connect(function()
-		CategoryManager:Show(category)
-	end)
+local function syncToggle(name, value)
+	ToggleManager:Set(name, value)
+	if value then Scheduler:Apply(ToggleManager, name) end
 end
 
-sidebarButton("Player", "Player")
-sidebarButton("Farming", "Farming")
-sidebarButton("Mining", "Mining")
-sidebarButton("Teleports", "Teleports")
+-- Tabs
+local PlayerTab = Window:CreateTab("Player", 4483362458)
+local FarmingTab = Window:CreateTab("Farming", 4483362458)
+local MiningTab = Window:CreateTab("Mining", 4483362458)
+local TravelTab = Window:CreateTab("Travel", 4483362458)
 
-CategoryManager:Show("Player")
+-- PLAYER
+PlayerTab:CreateToggle({
+	Name = "Auto Eat",
+	CurrentValue = false,
+	Callback = function(v) syncToggle("AutoEat", v) end,
+})
 
--- PLAYER PANEL
-UIBuilder:CreateHeader(playerPanel, "Player")
-
-local autoEatBtn = UIBuilder:CreateButton(playerPanel, "Auto Eat: OFF")
-UIBuilder:AnimateHover(autoEatBtn)
-autoEatBtn.MouseButton1Click:Connect(function()
-	guardedToggle("AutoEat")
+ToggleManager:OnChanged("AutoEat", function(v)
+	if v then AutoEat:Start() else AutoEat:Stop() end
 end)
 
-ToggleManager:OnChanged("AutoEat", function(state)
-	autoEatBtn.Text = state and "Auto Eat: ON" or "Auto Eat: OFF"
-	if state then AutoEat:Start() else AutoEat:Stop() end
+PlayerTab:CreateToggle({
+	Name = "Fast Movement",
+	CurrentValue = false,
+	Callback = function(v) syncToggle("Movement", v) end,
+})
+
+ToggleManager:OnChanged("Movement", function(v)
+	if v then Movement:Start() else Movement:Stop() end
 end)
 
-local moveBtn = UIBuilder:CreateButton(playerPanel, "Fast Move: OFF")
-UIBuilder:AnimateHover(moveBtn)
-moveBtn.MouseButton1Click:Connect(function()
-	guardedToggle("Movement")
+PlayerTab:CreateSection("Presets")
+
+PlayerTab:CreateButton({
+	Name = "Mining Mode",
+	Callback = function()
+		Presets:Apply(ToggleManager, "MiningMode")
+		Scheduler:Apply(ToggleManager, "Mining")
+	end,
+})
+
+PlayerTab:CreateButton({
+	Name = "Farming Mode",
+	Callback = function()
+		Presets:Apply(ToggleManager, "FarmingMode")
+		Scheduler:Apply(ToggleManager, "Farming")
+	end,
+})
+
+PlayerTab:CreateButton({
+	Name = "Travel Mode",
+	Callback = function()
+		Presets:Apply(ToggleManager, "TravelMode")
+	end,
+})
+
+-- FARMING
+FarmingTab:CreateToggle({
+	Name = "Auto Farming",
+	CurrentValue = false,
+	Callback = function(v) syncToggle("Farming", v) end,
+})
+
+ToggleManager:OnChanged("Farming", function(v)
+	if v then Farming:Start() else Farming:Stop() end
 end)
 
-ToggleManager:OnChanged("Movement", function(state)
-	moveBtn.Text = state and "Fast Move: ON" or "Fast Move: OFF"
-	if state then Movement:Start() else Movement:Stop() end
+-- MINING
+MiningTab:CreateToggle({
+	Name = "Auto Mining",
+	CurrentValue = false,
+	Callback = function(v) syncToggle("Mining", v) end,
+})
+
+ToggleManager:OnChanged("Mining", function(v)
+	if v then Mining:Start() else Mining:Stop() end
 end)
 
-UIBuilder:CreateHeader(playerPanel, "Presets")
-
-local miningPreset = UIBuilder:CreateButton(playerPanel, "Mining Mode")
-UIBuilder:AnimateHover(miningPreset)
-miningPreset.MouseButton1Click:Connect(function()
-	Presets:Apply(ToggleManager, "MiningMode")
-end)
-
-local farmingPreset = UIBuilder:CreateButton(playerPanel, "Farming Mode")
-UIBuilder:AnimateHover(farmingPreset)
-farmingPreset.MouseButton1Click:Connect(function()
-	Presets:Apply(ToggleManager, "FarmingMode")
-end)
-
-local travelPreset = UIBuilder:CreateButton(playerPanel, "Travel Mode")
-UIBuilder:AnimateHover(travelPreset)
-travelPreset.MouseButton1Click:Connect(function()
-	Presets:Apply(ToggleManager, "TravelMode")
-end)
-
--- FARMING PANEL
-UIBuilder:CreateHeader(farmingPanel, "Farming")
-
-local farmingBtn = UIBuilder:CreateButton(farmingPanel, "Farming: OFF")
-UIBuilder:AnimateHover(farmingBtn)
-farmingBtn.MouseButton1Click:Connect(function()
-	guardedToggle("Farming")
-end)
-
-ToggleManager:OnChanged("Farming", function(state)
-	farmingBtn.Text = state and "Farming: ON" or "Farming: OFF"
-	if state then Farming:Start() else Farming:Stop() end
-end)
-
--- MINING PANEL
-UIBuilder:CreateHeader(miningPanel, "Mining")
-
-local miningBtn = UIBuilder:CreateButton(miningPanel, "Mining: OFF")
-UIBuilder:AnimateHover(miningBtn)
-miningBtn.MouseButton1Click:Connect(function()
-	guardedToggle("Mining")
-end)
-
-ToggleManager:OnChanged("Mining", function(state)
-	miningBtn.Text = state and "Mining: ON" or "Mining: OFF"
-	if state then Mining:Start() else Mining:Stop() end
-end)
-
--- TELEPORT PANEL
-UIBuilder:CreateHeader(teleportPanel, "Teleports")
-
+-- TRAVEL
+TravelTab:CreateSection("Teleports")
 for name, pos in pairs(TeleportController:GetLocations()) do
-	local btn = UIBuilder:CreateButton(teleportPanel, name)
-	UIBuilder:AnimateHover(btn)
-	btn.MouseButton1Click:Connect(function()
-		Scheduler:Apply(ToggleManager, "Teleports")
-		TeleportController:TeleportTo(pos)
-	end)
+	TravelTab:CreateButton({
+		Name = name,
+		Callback = function()
+			Scheduler:Apply(ToggleManager, "Teleports")
+			TeleportController:TeleportTo(pos)
+		end,
+	})
 end
 
 -- Respawn safety
@@ -169,3 +132,9 @@ player.CharacterAdded:Connect(function()
 	if ToggleManager:Get("Farming") then Farming:Start() end
 	if ToggleManager:Get("Movement") then Movement:Start() end
 end)
+
+Rayfield:Notify({
+	Title = "Islands Client",
+	Content = "Rayfield UI loaded",
+	Duration = 3,
+})
