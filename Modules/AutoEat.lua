@@ -1,0 +1,1 @@
+local A={};A.__index=A;function A.new()return setmetatable({_r=false},A)end;function A:Start()self._r=true end;function A:Stop()self._r=false end;return A
