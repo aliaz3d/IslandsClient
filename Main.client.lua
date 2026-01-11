@@ -63,4 +63,87 @@ end)
 PlayerTab:CreateToggle({
 	Name = "Fast Movement",
 	CurrentValue = false,
-	Callb
+	Callback = function(v)
+		syncToggle("Movement", v)
+	end,
+})
+
+ToggleManager:OnChanged("Movement", function(v)
+	if v then Movement:Start() else Movement:Stop() end
+end)
+
+PlayerTab:CreateSection("Presets")
+
+PlayerTab:CreateButton({
+	Name = "Mining Mode",
+	Callback = function()
+		Presets:Apply(ToggleManager, "MiningMode")
+		Scheduler:Apply(ToggleManager, "Mining")
+	end,
+})
+
+PlayerTab:CreateButton({
+	Name = "Farming Mode",
+	Callback = function()
+		Presets:Apply(ToggleManager, "FarmingMode")
+		Scheduler:Apply(ToggleManager, "Farming")
+	end,
+})
+
+PlayerTab:CreateButton({
+	Name = "Travel Mode",
+	Callback = function()
+		Presets:Apply(ToggleManager, "TravelMode")
+	end,
+})
+
+--------------------------------------------------
+-- FARMING
+--------------------------------------------------
+FarmingTab:CreateToggle({
+	Name = "Auto Farming",
+	CurrentValue = false,
+	Callback = function(v)
+		syncToggle("Farming", v)
+	end,
+})
+
+ToggleManager:OnChanged("Farming", function(v)
+	if v then Farming:Start() else Farming:Stop() end
+end)
+
+--------------------------------------------------
+-- MINING
+--------------------------------------------------
+MiningTab:CreateToggle({
+	Name = "Auto Mining",
+	CurrentValue = false,
+	Callback = function(v)
+		syncToggle("Mining", v)
+	end,
+})
+
+ToggleManager:OnChanged("Mining", function(v)
+	if v then Mining:Start() else Mining:Stop() end
+end)
+
+--------------------------------------------------
+-- TRAVEL
+--------------------------------------------------
+TravelTab:CreateSection("Teleports")
+
+for name, pos in pairs(TeleportController:GetLocations()) do
+	TravelTab:CreateButton({
+		Name = name,
+		Callback = function()
+			Scheduler:Apply(ToggleManager, "Teleports")
+			TeleportController:TeleportTo(pos)
+		end,
+	})
+end
+
+Rayfield:Notify({
+	Title = "Islands Client",
+	Content = "Executor-only Rayfield loaded successfully",
+	Duration = 3,
+})
