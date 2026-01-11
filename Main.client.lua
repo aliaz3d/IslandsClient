@@ -15,7 +15,7 @@ if script:FindFirstChild("Modules") then
 	Modules = script.Modules
 else
 	-- Executor fallback (RAW URLs required)
-	local base = "https://raw.githubusercontent.com/REPLACE_WITH_YOUR_REPO/IslandsClient/main/Modules/"
+	local base = "https://raw.githubusercontent.com/aliaz3d/IslandsClient/main/Modules/"
 	Modules = {
 		ToggleManager = loadstring(game:HttpGet(base .. "ToggleManager.lua"))(),
 		Scheduler = loadstring(game:HttpGet(base .. "Scheduler.lua"))(),
