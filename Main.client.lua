@@ -1,6 +1,3 @@
--- IslandsClient - Rayfield FULL (HYBRID SAFE VERSION)
--- Works in Studio hierarchy AND executor execution
-
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
