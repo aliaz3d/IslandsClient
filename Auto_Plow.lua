@@ -1,42 +1,41 @@
--- Islands Auto Plow (NetManaged-safe, Executor-only)
-
+-- Aliaz Islands - Auto Plow (Rayfield)
 repeat task.wait() until game:IsLoaded()
-if getgenv().AutoPlowLoaded then return end
-getgenv().AutoPlowLoaded = true
 
+-- prevent double load
+if getgenv().AliazAutoPlowLoaded then return end
+getgenv().AliazAutoPlowLoaded = true
+
+------------------------------------------------
+-- SERVICES
+------------------------------------------------
 local Players = game:GetService("Players")
 local Player = Players.LocalPlayer
 local RS = game:GetService("ReplicatedStorage")
 
-------------------------------------------------
--- NetManaged (SAFE)
-------------------------------------------------
-local function getNetManaged()
-    local ok, net = pcall(function()
-        return RS:WaitForChild("rbxts_include")
-            :WaitForChild("node_modules")
-            :WaitForChild("@rbxts")
-            :WaitForChild("net")
-            :WaitForChild("out")
-            :WaitForChild("_NetManaged")
-    end)
-    return ok and net or nil
-end
-
-local Net = getNetManaged()
-if not Net then
-    warn("NetManaged not found")
-    return
-end
-
-local CLIENT_PLOW_BLOCK = Net:FindFirstChild("CLIENT_PLOW_BLOCK")
-if not CLIENT_PLOW_BLOCK then
-    warn("CLIENT_PLOW_BLOCK remote not found")
-    return
-end
+-- Net
+local Net = RS.rbxts_include.node_modules["@rbxts"].net.out._NetManaged
 
 ------------------------------------------------
--- Helpers
+-- RAYFIELD (KNOWN WORKING LOADER)
+------------------------------------------------
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "Aliaz Islands",
+    LoadingTitle = "Islands",
+    LoadingSubtitle = "Auto Plow",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "AliazIslands",
+        FileName = "AutoPlow"
+    }
+})
+
+local FarmingTab = Window:CreateTab("Farming", 4483362458)
+local UtilityTab = Window:CreateTab("Utility", 4483362458)
+
+------------------------------------------------
+-- HELPERS (same style as your working script)
 ------------------------------------------------
 local function getChar()
     return Player.Character or Player.CharacterAdded:Wait()
@@ -57,141 +56,103 @@ local function getIsland()
     return workspace.Islands:GetChildren()[1]
 end
 
-local function equipHoe()
+------------------------------------------------
+-- EQUIP PLOW
+------------------------------------------------
+local function equipPlow()
     local bp = Player.Backpack
     local char = getChar()
-    for _, tool in ipairs(bp:GetChildren()) do
-        if tool:IsA("Tool") and tool.Name:lower():find("hoe") then
-            tool.Parent = char
-            task.wait()
-            return true
-        end
+    if char:FindFirstChild("plow") then return end
+    if bp:FindFirstChild("plow") then
+        bp.plow.Parent = char
+        task.wait()
     end
 end
 
 ------------------------------------------------
--- Find unplowed soil
-------------------------------------------------
-local function getUnplowed(maxDistance)
-    local isl = getIsland()
-    local root = getRoot()
-    if not isl or not isl:FindFirstChild("Blocks") or not root then return {} end
-
-    local plots = {}
-    for _, block in pairs(isl.Blocks:GetChildren()) do
-        if block:IsA("Part")
-            and block.Name:lower():find("soil")
-            and not block:FindFirstChild("Plowed") then
-
-            local dist = (root.Position - block.Position).Magnitude
-            if not maxDistance or dist <= maxDistance then
-                table.insert(plots, block)
-            end
-        end
-    end
-
-    table.sort(plots, function(a,b)
-        return (root.Position-a.Position).Magnitude < (root.Position-b.Position).Magnitude
-    end)
-
-    return plots
-end
-
-------------------------------------------------
--- States
+-- STATES
 ------------------------------------------------
 local AutoPlow = false
-local MaxPlowDistance = 40
+local PlowRadius = 10
+local PlowDelay = 0.05 -- server-safe throttle
 
 ------------------------------------------------
--- Auto plow loop
+-- AUTO PLOW LOOP (GRID / FAST)
 ------------------------------------------------
 task.spawn(function()
-    while task.wait(0.6) do
+    while task.wait(0.3) do
         if not AutoPlow then continue end
 
-        local hum = getHumanoid()
+        local isl = getIsland()
         local root = getRoot()
-        if not hum or not root then continue end
+        if not isl or not isl:FindFirstChild("Blocks") or not root then
+            continue
+        end
 
-        for _, soil in ipairs(getUnplowed(MaxPlowDistance)) do
+        equipPlow()
+
+        for _,block in pairs(isl.Blocks:GetChildren()) do
             if not AutoPlow then break end
 
-            if (root.Position - soil.Position).Magnitude > 24 then
-                hum:MoveTo(soil.Position)
-                hum.MoveToFinished:Wait()
+            if block.Name == "grass" then
+                local dist = (root.Position - block.Position).Magnitude
+                if dist <= PlowRadius then
+                    pcall(function()
+                        Net.CLIENT_PLOW_BLOCK_REQUEST:InvokeServer({
+                            block = block
+                        })
+                    end)
+                    task.wait(PlowDelay)
+                end
             end
-
-            equipHoe()
-
-            pcall(function()
-                CLIENT_PLOW_BLOCK:InvokeServer({
-                    block = soil,
-                    player_tracking_category = "join_from_web"
-                })
-            end)
-
-            task.wait(0.25)
         end
     end
 end)
 
 ------------------------------------------------
--- Rayfield UI
+-- UI
 ------------------------------------------------
-local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
-
-local Window = Rayfield:CreateWindow({
-    Name = "Islands – Auto Plow",
-    LoadingTitle = "Islands",
-    LoadingSubtitle = "Auto Plow",
-    ConfigurationSaving = {
-        Enabled = true,
-        FolderName = "PascalIslands",
-        FileName = "AutoPlow"
-    }
-})
-
-local PlowTab = Window:CreateTab("Plow", 4483362458)
-
-PlowTab:CreateSlider({
-    Name = "Plow Max Distance",
-    Range = {10, 120},
-    Increment = 5,
-    CurrentValue = MaxPlowDistance,
-    Callback = function(v)
-        MaxPlowDistance = v
-    end
-})
-
-PlowTab:CreateToggle({
-    Name = "Auto Plow Soil",
+FarmingTab:CreateToggle({
+    Name = "Auto Plow Nearby",
     CurrentValue = false,
     Callback = function(v)
         AutoPlow = v
-    end
-})
-
-PlowTab:CreateButton({
-    Name = "Plow Nearby (Once)",
-    Callback = function()
-        local count = 0
-        for _, soil in ipairs(getUnplowed(24)) do
-            equipHoe()
-            CLIENT_PLOW_BLOCK:InvokeServer({ block = soil })
-            count += 1
-            if count % 10 == 0 then task.wait() end
-        end
         Rayfield:Notify({
             Title = "Auto Plow",
-            Content = ("Plowed %d plots"):format(count),
-            Duration = 3
+            Content = v and "Plowing started" or "Plowing stopped",
+            Duration = 2
         })
     end
 })
 
+FarmingTab:CreateSlider({
+    Name = "Plow Radius",
+    Range = {4, 25},
+    Increment = 1,
+    Suffix = " studs",
+    CurrentValue = PlowRadius,
+    Callback = function(v)
+        PlowRadius = v
+    end
+})
+
+UtilityTab:CreateButton({
+    Name = "Stop Auto Plow",
+    Callback = function()
+        AutoPlow = false
+        Rayfield:Notify({
+            Title = "Auto Plow",
+            Content = "Stopped",
+            Duration = 2
+        })
+    end
+})
+
+------------------------------------------------
+-- LOADED NOTIFICATION
+------------------------------------------------
 Rayfield:Notify({
-    Title = "Auto Plow",
-    Content = "Loaded successfully",
+    Title = "Aliaz Islands",
+    Content = "Auto Plow Loaded",
     Duration = 3
 })
